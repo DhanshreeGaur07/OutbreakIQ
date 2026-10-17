@@ -2,11 +2,13 @@
 
 Reads the artifacts written by `python main.py all` (or `python main.py all --synthetic`).
 Point it elsewhere with  OUTBREAKIQ_ARTIFACTS=artifacts/synthetic streamlit run app/dashboard.py
+On Streamlit Cloud (no pre-built artifacts), synthetic demo data is generated automatically.
 """
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -15,9 +17,18 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # repo root, no packaging needed
-from src.epi.transmission import SeirFit, seir_forecast  # noqa: E402
-from src.models.model import TIERS  # noqa: E402
+# Ensure repo root is on sys.path so src.* imports always work on Streamlit Cloud
+_repo_root = str(Path(__file__).resolve().parents[1])
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+try:
+    from src.epi.transmission import SeirFit, seir_forecast  # noqa: E402
+    from src.models.model import TIERS  # noqa: E402
+    _SEIR_AVAILABLE = True
+except Exception:
+    _SEIR_AVAILABLE = False
+    TIERS = [(0.0, "Low"), (0.2, "Guarded"), (0.4, "Elevated"), (0.6, "High"), (0.8, "Critical")]
 
 st.set_page_config(page_title="OutbreakIQ", page_icon="🦠", layout="wide")
 
@@ -57,15 +68,32 @@ def add_change(df: pd.DataFrame) -> pd.DataFrame:
 data = load(str(ART))
 st.title("🦠 OutbreakIQ — epidemic spread prediction")
 if data is None:
-    st.error(f"No artifacts found in `{ART}`. Run `python main.py all` "
-             "(or `python main.py all --synthetic` for an offline demo) first.")
-    st.stop()
+    # On Streamlit Cloud, artifacts are gitignored — auto-generate synthetic demo data
+    _syn_art = Path(_repo_root) / "artifacts" / "synthetic"
+    _syn_data = load(str(_syn_art))
+    if _syn_data is None:
+        with st.spinner("⚙️ First run: generating synthetic demo data (takes ~60s)…"):
+            try:
+                subprocess.run(
+                    [sys.executable, "main.py", "all", "--synthetic"],
+                    cwd=_repo_root, check=True, capture_output=True, timeout=300,
+                )
+                _syn_data = load(str(_syn_art))
+            except Exception as exc:
+                st.error(f"Could not generate demo data: {exc}")
+                st.stop()
+    if _syn_data is not None:
+        data = _syn_data
+        ART = _syn_art
+    else:
+        st.error(f"No artifacts found in `{ART}`. Run `python main.py all` first.")
+        st.stop()
 
 pred, hist, latest, metrics = data["pred"], data["hist"], data["latest"], data["metrics"]
 h = metrics["horizon_days"]
 as_of = pd.Timestamp(metrics["as_of"])
 if "synthetic" in str(ART):
-    st.warning("Showing SYNTHETIC demo data — not real epidemiology.")
+    st.warning("⚠️ Showing SYNTHETIC demo data — not real epidemiology.")
 
 # ------------------------------------------------------------------ sidebar
 st.sidebar.header("Controls")
@@ -141,7 +169,7 @@ with tab_country:
                                  line=dict(color="#d1495b", width=1.5)))
     sp = data["seir_p"]
     row = sp[sp["iso3"] == iso] if len(sp) else sp
-    if len(row):
+    if len(row) and _SEIR_AVAILABLE:
         st.markdown("**Transmission scenario (SEIR)** — re-simulate from today's fitted state")
         change = st.slider("Change in transmission rate vs. now (%)", -60, 60, 0, step=5)
         r = row.iloc[0]
