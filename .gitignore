@@ -1,0 +1,15 @@
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+logs/
+*.part
+.DS_Store
+# data, models and generated artifacts are reproducible from `python main.py all`
+data/raw/*
+data/interim/
+data/processed/
+data/synthetic/
+models/
+artifacts/
+!data/raw/.gitkeep

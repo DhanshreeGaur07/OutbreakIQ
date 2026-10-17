@@ -1,0 +1,9 @@
+services:
+  pipeline:            # docker compose run --rm pipeline   -> builds data/, models/, artifacts/
+    build: .
+    command: ["python", "main.py", "all"]
+    volumes: ["./data:/app/data", "./models:/app/models", "./artifacts:/app/artifacts", "./logs:/app/logs"]
+  dashboard:           # docker compose up dashboard
+    build: .
+    ports: ["8501:8501"]
+    volumes: ["./artifacts:/app/artifacts:ro"]

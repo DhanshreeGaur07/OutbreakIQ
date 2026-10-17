@@ -1,0 +1,10 @@
+# All keys optional - defaults live in src/config.py. CLI flags override this file.
+horizon: 14               # forecast horizon (days)
+surge_ratio: 1.25         # surge = 7d-avg incidence >= 125% of today's ...
+surge_min_level: 5.0      # ... and >= 5 cases / million / day
+use_mobility: false       # true after `python main.py ingest --mobility`
+first_cutoff: "2020-10-01"
+step_days: 90             # walk-forward refit cadence
+calib_days: 120
+n_jobs: 2                 # parallel SEIR fits
+seed: 42
